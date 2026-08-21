@@ -1,6 +1,15 @@
+# Nom de projet figé explicitement : par défaut Compose le dérive du nom du
+# répertoire, si bien qu'un déplacement ou un renommage de ce dossier ferait
+# chercher des volumes "<autre-nom>_postgres-volume" inexistants — et Compose
+# en créerait de vides, c'est-à-dire une perte silencieuse des données Postiz.
+name: postiz
+
 services:
   postiz:
-    image: ghcr.io/gitroomhq/postiz-app:latest
+    image: postiz-app:x-char-count-fix
+    # Custom image built locally from a patched fork, pending upstream PR:
+    # fixes X/Twitter character counting to account for t.co's 23-char URL
+    # shortening. Revert to ghcr.io/gitroomhq/postiz-app:latest once merged.
     container_name: postiz
     restart: always
     environment:
@@ -113,7 +122,14 @@ services:
       - postiz-config:/config/
       - postiz-uploads:/uploads/
     ports:
-      - "4007:5000"
+      - "127.0.0.1:4007:5000"
+      # Public API only: the container's own nginx (port 5000, mapped
+      # above) misroutes /public/v1/* to the Next.js frontend instead of
+      # the NestJS backend, which redirects to /auth regardless of a
+      # valid Authorization header. Exposing the backend's own port lets
+      # API clients (biblionef_social_publish) bypass that broken proxy
+      # rule entirely; the browser-facing app keeps using 4007 as normal.
+      - "127.0.0.1:3000:3000"
     networks:
       - postiz-network
       - temporal-network
@@ -284,7 +300,7 @@ services:
     networks:
       - temporal-network
     ports:
-      - '127.0.0.1:8080:8080'
+      - '127.0.0.1:8090:8080'
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
       interval: 30s
